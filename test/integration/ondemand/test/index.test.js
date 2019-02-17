@@ -3,7 +3,8 @@
 import { join, resolve } from 'path'
 import { existsSync } from 'fs'
 import webdriver from 'next-webdriver'
-import WebSocket from 'ws'
+import SimplePeer from 'simple-peer'
+import wrtc from 'wrtc'
 import {
   renderViaHTTP,
   fetchViaHTTP,
@@ -19,8 +20,10 @@ const context = {}
 
 const doPing = path => {
   return new Promise(resolve => {
-    context.ws.onmessage = () => resolve()
-    context.ws.send(path)
+    context.peer.once('data', data => {
+      resolve(data.toString())
+    })
+    context.peer.send(path)
   })
 }
 
@@ -31,18 +34,30 @@ describe('On Demand Entries', () => {
   beforeAll(async () => {
     context.appPort = await findPort()
     context.server = await launchApp(join(__dirname, '../'), context.appPort)
-    await new Promise(resolve => {
-      fetchViaHTTP(context.appPort, '/_next/on-demand-entries-ping').then(res => {
-        const wsPort = res.headers.get('port')
-        context.ws = new WebSocket(
-          `ws://localhost:${wsPort}`
-        )
-        context.ws.on('open', () => resolve())
+    await new Promise((resolve, reject) => {
+      context.peer = new SimplePeer({
+        initiator: true,
+        trickle: false,
+        wrtc
+      })
+
+      context.peer.once('signal', offer => {
+        fetchViaHTTP(context.appPort, '/_next/on-demand-entries-ping', null, {
+          method: 'GET',
+          headers: {
+            'offer': JSON.stringify(offer)
+          }
+        }).then(res => {
+          context.peer.once('connect', () => resolve())
+          return res.json().then(data => {
+            context.peer.signal(data)
+          })
+        }).catch(err => reject(err))
       })
     })
   })
   afterAll(() => {
-    context.ws.close()
+    context.peer.destroy()
     killApp(context.server)
   })
 

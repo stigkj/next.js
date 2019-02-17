@@ -1,80 +1,58 @@
-/* global location, WebSocket */
-
+/* global location */
 import Router from 'next/router'
 import fetch from 'unfetch'
-
-const { hostname, protocol } = location
-const wsProtocol = protocol.includes('https') ? 'wss' : 'ws'
-const retryTime = 5000
-let ws = null
-let lastHref = null
-let wsConnectTries = 0
-let showedWarning = false
+import SimplePeer from 'simple-peer'
 
 export default async ({ assetPrefix }) => {
   Router.ready(() => {
     Router.events.on('routeChangeComplete', ping)
   })
+  let peer, usePeer
+  const onDemandEntriesURL = `${assetPrefix || ''}/_next/on-demand-entries-ping`
 
-  const setup = async () => {
-    if (ws && ws.readyState === ws.OPEN) {
-      return Promise.resolve()
-    } else if (wsConnectTries > 1) {
-      return
-    }
-    wsConnectTries++
+  // Use WebRTC if available
+  if (SimplePeer.WEBRTC_SUPPORT) {
+    peer = new SimplePeer({
+      initiator: true,
+      trickle: false
+    })
 
-    return new Promise(resolve => {
-      ws = new WebSocket(`${wsProtocol}://${hostname}:${process.env.__NEXT_WS_PORT}${process.env.__NEXT_WS_PROXY_PATH}`)
-      ws.onopen = () => {
-        wsConnectTries = 0
-        resolve()
-      }
-      ws.onclose = () => {
-        setTimeout(async () => {
-          await fetch(`${assetPrefix}/_next/on-demand-entries-ping`)
-            .then(res => {
-              // Only reload if next was restarted and we have a new WebSocket port
-              if (res.status === 200 && res.headers.get('port') !== process.env.__NEXT_WS_PORT + '') {
-                location.reload()
-              }
-            })
-            .catch(() => {})
-          await setup(true)
-          resolve()
-        }, retryTime)
-      }
-      ws.onmessage = async ({ data }) => {
-        const payload = JSON.parse(data)
-        if (payload.invalid && lastHref !== location.href) {
-          // Payload can be invalid even if the page does not exist.
-          // So, we need to make sure it exists before reloading.
-          const pageRes = await fetch(location.href, {
-            credentials: 'omit'
-          })
-          if (pageRes.status === 200) {
-            location.reload()
-          } else {
-            lastHref = location.href
-          }
+    peer.on('connect', () => {
+      usePeer = true
+    })
+
+    peer.on('error', err => {
+      usePeer = false
+      console.error('Error encountered with on-demand-entries-ping:', err)
+    })
+
+    peer.on('disconnect', () => {
+      usePeer = false
+    })
+
+    peer.on('signal', offer => {
+      fetch(onDemandEntriesURL, {
+        method: 'GET',
+        headers: {
+          'offer': JSON.stringify(offer)
         }
-      }
+      }).then(res => {
+        res.json().then(data => {
+          peer.signal(data)
+        })
+      }).catch(err => {
+        console.error('Error setting up on-demand-entries-ping:', err)
+      })
     })
   }
-  setup()
 
   async function ping () {
-    // Use WebSocket if available
-    if (ws && ws.readyState === ws.OPEN) {
-      return ws.send(Router.pathname)
-    }
-    if (!showedWarning) {
-      console.warn('onDemandEntries WebSocket failed to connect, falling back to fetch based pinging. https://err.sh/zeit/next.js/on-demand-entries-websocket-unavailable')
-      showedWarning = true
-    }
-    // If not, fallback to fetch based pinging
+    const page = Router.pathname
+    // Use WebRTC if set up
+    if (usePeer) return peer.send(page)
+
     try {
-      const url = `${assetPrefix || ''}/_next/on-demand-entries-ping?page=${Router.pathname}`
+      const url = `${onDemandEntriesURL}?page=${page}`
       const res = await fetch(url, {
         credentials: 'same-origin'
       })

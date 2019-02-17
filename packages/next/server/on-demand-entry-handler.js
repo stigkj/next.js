@@ -5,6 +5,8 @@ import {parse} from 'url'
 import fs from 'fs'
 import promisify from '../lib/promisify'
 import globModule from 'glob'
+import wrtc from 'wrtc'
+import SimplePeer from 'simple-peer'
 import {pageNotFoundError} from 'next-server/dist/server/require'
 import {normalizePagePath} from 'next-server/dist/server/normalize-page-path'
 import { ROUTE_NAME_REGEX, IS_BUNDLED_PAGE_REGEX } from 'next-server/constants'
@@ -34,8 +36,7 @@ export default function onDemandEntryHandler (devMiddleware, multiCompiler, {
   reload,
   pageExtensions,
   maxInactiveAge,
-  pagesBufferLength,
-  wsPort
+  pagesBufferLength
 }) {
   const {compilers} = multiCompiler
   const invalidator = new Invalidator(devMiddleware, multiCompiler)
@@ -258,13 +259,6 @@ export default function onDemandEntryHandler (devMiddleware, multiCompiler, {
       })
     },
 
-    wsConnection (ws) {
-      ws.onmessage = ({ data }) => {
-        // `data` should be the page here
-        handlePing(data, ws)
-      }
-    },
-
     middleware () {
       return (req, res, next) => {
         if (stopped) {
@@ -292,9 +286,27 @@ export default function onDemandEntryHandler (devMiddleware, multiCompiler, {
             return handlePing(query.page, res)
           }
 
-          res.statusCode = 200
-          res.setHeader('port', wsPort)
-          res.end('200')
+          // Should be initializing WebRTC connection
+          const peer = new SimplePeer({
+            initiator: false,
+            trickle: false,
+            wrtc
+          })
+
+          peer.on('data', msg => {
+            handlePing(msg.toString(), peer)
+          })
+          // prevent peer from crashing when client disconnects
+          peer.on('error', () => {})
+
+          peer.once('signal', offer => {
+            res.writeHead(200, { 'content-type': 'application/json' })
+            res.write(JSON.stringify(offer))
+            res.end()
+          })
+
+          const offer = JSON.parse(req.headers.offer)
+          peer.signal(offer)
         }
       }
     }
@@ -349,7 +361,7 @@ function sendJson (socket, data) {
     socket.status = 200
     return socket.end(data)
   }
-  // Should be WebSocket so just send
+  // Should be WebRTC so just send
   socket.send(data)
 }
 
