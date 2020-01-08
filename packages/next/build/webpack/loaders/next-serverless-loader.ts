@@ -211,6 +211,7 @@ const nextServerlessLoader: loader.Loader = function() {
         canonicalBase: "${canonicalBase}",
         buildId: "${buildId}",
         assetPrefix: "${assetPrefix}",
+        basePath: "${basePath}",
         ..._renderOpts
       }
       let sprData = false

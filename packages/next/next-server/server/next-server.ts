@@ -101,6 +101,7 @@ export default class Server {
     documentMiddlewareEnabled: boolean
     hasCssMode: boolean
     dev?: boolean
+    basePath: string
   }
   private compression?: Middleware
   private onErrorMiddleware?: ({ err }: { err: Error }) => Promise<void>
@@ -148,6 +149,7 @@ export default class Server {
       staticMarkup,
       buildId: this.buildId,
       generateEtags,
+      basePath: this.nextConfig.experimental.basePath,
     }
 
     // Only the `publicRuntimeConfig` key is exposed to the client side

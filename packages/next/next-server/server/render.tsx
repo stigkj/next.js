@@ -51,15 +51,22 @@ class ServerRouter implements NextRouter {
   pathname: string
   query: ParsedUrlQuery
   asPath: string
+  basePath: string
   events: any
   // TODO: Remove in the next major version, as this would mean the user is adding event listeners in server-side `render` method
   static events: MittEmitter = mitt()
 
-  constructor(pathname: string, query: ParsedUrlQuery, as: string) {
+  constructor(
+    pathname: string,
+    query: ParsedUrlQuery,
+    as: string,
+    basePath: string
+  ) {
     this.route = pathname.replace(/\/$/, '') || '/'
     this.pathname = pathname
     this.query = query
     this.asPath = as
+    this.basePath = basePath
   }
   push(): any {
     noRouter()
@@ -155,6 +162,7 @@ type RenderOpts = {
     revalidate?: number | boolean
   }
   unstable_getStaticPaths?: () => void
+  basePath: string
 }
 
 function renderDocument(
@@ -272,6 +280,7 @@ export async function renderToHTML(
     ErrorDebug,
     unstable_getStaticProps,
     unstable_getStaticPaths,
+    basePath,
   } = renderOpts
 
   const callMiddleware = async (method: string, args: any[], props = false) => {
@@ -369,7 +378,7 @@ export async function renderToHTML(
 
   // @ts-ignore url will always be set
   const asPath: string = req.url
-  const router = new ServerRouter(pathname, query, asPath)
+  const router = new ServerRouter(pathname, query, asPath, basePath)
   const ctx = {
     err,
     req: isAutoExport ? undefined : req,
