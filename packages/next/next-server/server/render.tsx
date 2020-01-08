@@ -2,7 +2,7 @@ import { IncomingMessage, ServerResponse } from 'http'
 import { ParsedUrlQuery } from 'querystring'
 import React from 'react'
 import { renderToString, renderToStaticMarkup } from 'react-dom/server'
-import { NextRouter } from '../lib/router/router'
+import { NextRouter, addBasePath } from '../lib/router/router'
 import mitt, { MittEmitter } from '../lib/mitt'
 import {
   loadGetInitialProps,
@@ -52,6 +52,7 @@ class ServerRouter implements NextRouter {
   query: ParsedUrlQuery
   asPath: string
   events: any
+  addBasePath: typeof addBasePath
   // TODO: Remove in the next major version, as this would mean the user is adding event listeners in server-side `render` method
   static events: MittEmitter = mitt()
 
@@ -60,6 +61,7 @@ class ServerRouter implements NextRouter {
     this.pathname = pathname
     this.query = query
     this.asPath = as
+    this.addBasePath = addBasePath
   }
   push(): any {
     noRouter()
