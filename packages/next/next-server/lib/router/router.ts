@@ -17,10 +17,15 @@ import { isDynamicRoute } from './utils/is-dynamic'
 import { getRouteMatcher } from './utils/route-matcher'
 import { getRouteRegex } from './utils/route-regex'
 
-function addBasePath(path: string): string {
-  // @ts-ignore variable is always a string
-  const p: string = process.env.__NEXT_ROUTER_BASEPATH
-  return path.indexOf(p) !== 0 ? p + path : path
+// @ts-ignore variable is always a string
+const basePath: string = process.env.__NEXT_ROUTER_BASEPATH
+
+export function addBasePath(path: string): string {
+  return path.indexOf(basePath) !== 0 ? basePath + path : path
+}
+
+function delBasePath(path: string): string {
+  return path.replace(new RegExp(`^${basePath}`), '')
 }
 
 function toRoute(path: string): string {
@@ -274,8 +279,11 @@ export default class Router implements BaseRouter {
 
       // If url and as provided as an object representation,
       // we'll format them into the string version here.
-      const url = typeof _url === 'object' ? formatWithValidation(_url) : _url
+      let url = typeof _url === 'object' ? formatWithValidation(_url) : _url
       let as = typeof _as === 'object' ? formatWithValidation(_as) : _as
+
+      url = addBasePath(url)
+      as = addBasePath(as)
 
       // Add the ending slash to the paths. So, we can serve the
       // "<page>/index.html" directly for the SSR page.
@@ -299,7 +307,7 @@ export default class Router implements BaseRouter {
       if (!options._h && this.onlyAHashChange(as)) {
         this.asPath = as
         Router.events.emit('hashChangeStart', as)
-        this.changeState(method, url, addBasePath(as))
+        this.changeState(method, url, as)
         this.scrollToHash(as)
         Router.events.emit('hashChangeComplete', as)
         return resolve(true)
@@ -361,7 +369,7 @@ export default class Router implements BaseRouter {
         }
 
         Router.events.emit('beforeHistoryChange', as)
-        this.changeState(method, url, addBasePath(as), options)
+        this.changeState(method, url, as, options)
         const hash = window.location.hash.substring(1)
 
         if (process.env.NODE_ENV !== 'production') {
@@ -614,8 +622,7 @@ export default class Router implements BaseRouter {
         return
       }
 
-      // @ts-ignore pathname is always defined
-      const route = toRoute(pathname)
+      const route = delBasePath(toRoute(pathname))
       this.pageLoader.prefetch(route).then(resolve, reject)
     })
   }
@@ -625,6 +632,7 @@ export default class Router implements BaseRouter {
     const cancel = (this.clc = () => {
       cancelled = true
     })
+    route = delBasePath(route)
 
     const Component = await this.pageLoader.loadPage(route)
 
