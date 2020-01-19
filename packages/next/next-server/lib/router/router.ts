@@ -312,7 +312,7 @@ export default class Router implements BaseRouter {
       if (!options._h && this.onlyAHashChange(as)) {
         this.asPath = as
         Router.events.emit('hashChangeStart', as)
-        this.changeState(method, url, as)
+        this.changeState(method, url, as, options)
         this.scrollToHash(as)
         Router.events.emit('hashChangeComplete', as)
         return resolve(true)
@@ -463,7 +463,7 @@ export default class Router implements BaseRouter {
         }
 
         return this._getData<RouteInfo>(() =>
-          (Component as any).__NEXT_SPR
+          (Component as any).__N_SSG
             ? this._getStaticData(as)
             : this.getInitialProps(
                 Component,
@@ -679,7 +679,7 @@ export default class Router implements BaseRouter {
 
   _getStaticData = (asPath: string, _cachedData?: object): Promise<object> => {
     let pathname = parse(asPath).pathname
-    pathname = !pathname || pathname === '/' ? '/index' : pathname
+    pathname = toRoute(!pathname || pathname === '/' ? '/index' : pathname)
 
     return process.env.NODE_ENV === 'production' &&
       (_cachedData = this.sdc[pathname])

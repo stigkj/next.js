@@ -28,7 +28,7 @@ import { isInAmpMode } from '../lib/amp'
 // Uses a module path because of the compiled output directory location
 import { PageConfig } from 'next/types'
 import { isDynamicRoute } from '../lib/router/utils/is-dynamic'
-import { SPR_GET_INITIAL_PROPS_CONFLICT } from '../../lib/constants'
+import { SSG_GET_INITIAL_PROPS_CONFLICT } from '../../lib/constants'
 import { AMP_RENDER_TARGET } from '../lib/constants'
 
 export type ManifestItem = {
@@ -333,7 +333,7 @@ export async function renderToHTML(
   }
 
   if (hasPageGetInitialProps && isSpr) {
-    throw new Error(SPR_GET_INITIAL_PROPS_CONFLICT + ` ${pathname}`)
+    throw new Error(SSG_GET_INITIAL_PROPS_CONFLICT + ` ${pathname}`)
   }
 
   if (!!unstable_getStaticPaths && !isSpr) {
@@ -479,7 +479,7 @@ export async function renderToHTML(
       props.pageProps = data.props
       // pass up revalidate and props for export
       ;(renderOpts as any).revalidate = data.revalidate
-      ;(renderOpts as any).sprData = props
+      ;(renderOpts as any).pageData = props
     }
   } catch (err) {
     if (!dev || !err) throw err
